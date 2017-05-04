@@ -12,28 +12,50 @@
     },
     "logicAppLocation": {
       "type": "string",
-      "defaultValue": "[resourceGroup().location]",
+      "defaultValue": "northeurope",
       "allowedValues": [
-        "[resourceGroup().location]",
-        "australiaeast",
-        "australiasoutheast",
-        "brazilsouth",
-        "centralus",
         "eastasia",
+        "southeastasia",
+        "centralus",
         "eastus",
         "eastus2",
-        "japaneast",
-        "japanwest",
+        "westus",
         "northcentralus",
-        "northeurope",
         "southcentralus",
-        "southeastasia",
+        "northeurope",
         "westeurope",
-        "westus"
+        "japanwest",
+        "japaneast",
+        "brazilsouth",
+        "australiaeast",
+        "australiasoutheast",
+        "southindia",
+        "centralindia",
+        "canadacentral",
+        "canadaeast",
+        "westcentralus",
+        "westus2",
+        "[resourceGroup().location]"
       ],
       "metadata": {
         "description": "Location of the Logic App."
       }
+    },
+    "office365_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "office365"
+    },
+    "office365_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "DavidSigemo@Blargh.onmicrosoft.com"
+    },
+    "sharepointonline_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "sharepointonline"
+    },
+    "sharepointonline_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "DavidSigemo@Blargh.onmicrosoft.com"
     }
   },
   "variables": {},
@@ -49,13 +71,197 @@
       "properties": {
         "definition": {
           "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "actions": {
+            "Send_approval_email": {
+              "type": "ApiConnectionWebhook",
+              "inputs": {
+                "host": {
+                  "api": {
+                    "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/office365"
+                  },
+                  "connection": {
+                    "name": "@parameters('$connections')['office365']['connectionId']"
+                  }
+                },
+                "path": "/approvalmail/$subscriptions",
+                "body": {
+                  "NotificationUrl": "@listCallbackUrl()",
+                  "Message": {
+                    "To": "DavidSigemo@blargh.onmicrosoft.com",
+                    "Subject": "Ny motionsansökan",
+                    "Options": "Godkänn, Avslå",
+                    "Body": "<h3>En ny ansökan har skickats in</h3><br /><p>@{triggerBody()?['Author']?['DisplayName']} , @{triggerBody()?['Sender']?['Value']} har skapat följande ansökan:</p><div><p>Rubrik: @{triggerBody()?['Title']}</p><p>Kommentar: <div>@{triggerBody()?['Kommentar']}</div></p></div><br /><p>För att skapa upp en motion för ärendet var god välj \"Godkänn\" nedan, annars välj \"Avslå\".</p>",
+                    "Importance": "Normal"
+                  }
+                }
+              },
+              "runAfter": {}
+            },
+            "Switch": {
+              "type": "Switch",
+              "expression": "@body('Send_approval_email')",
+              "cases": {
+                "Case_Godkänn": {
+                  "case": "Godkänn",
+                  "actions": {
+                    "Create_file": {
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "api": {
+                            "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/sharepointonline"
+                          },
+                          "connection": {
+                            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                          }
+                        },
+                        "method": "post",
+                        "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering'))}/files",
+                        "queries": {
+                          "folderPath": "/yttrandeDokument",
+                          "name": "@{triggerBody()?['Title']}.txt"
+                        },
+                        "body": "@triggerBody()?['Kommentar']"
+                      },
+                      "runAfter": {}
+                    },
+                    "Update_item": {
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "api": {
+                            "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/sharepointonline"
+                          },
+                          "connection": {
+                            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                          }
+                        },
+                        "method": "patch",
+                        "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering'))}/tables/@{encodeURIComponent(encodeURIComponent('ab9091d6-b957-4912-bf6a-6faec2a59fd7'))}/items/@{encodeURIComponent(triggerBody()?['ID'])}",
+                        "body": {
+                          "Title": "@{triggerBody()?['Title']} godkänn",
+                          "Kommentar": "@{triggerBody()?['Kommentar']}"
+                        }
+                      },
+                      "runAfter": {
+                        "Create_file": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "Case_Avslå": {
+                  "case": "Avslå",
+                  "actions": {
+                    "Update_item_2": {
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "api": {
+                            "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/sharepointonline"
+                          },
+                          "connection": {
+                            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                          }
+                        },
+                        "method": "patch",
+                        "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering'))}/tables/@{encodeURIComponent(encodeURIComponent('ab9091d6-b957-4912-bf6a-6faec2a59fd7'))}/items/@{encodeURIComponent(triggerBody()?['ID'])}",
+                        "body": {
+                          "Title": "@{triggerBody()?['Title']} avslag",
+                          "Kommentar": "@{triggerBody()?['Kommentar']}"
+                        }
+                      },
+                      "runAfter": {}
+                    }
+                  }
+                }
+              },
+              "default": {
+                "actions": {}
+              },
+              "runAfter": {
+                "Send_approval_email": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "parameters": {
+            "$connections": {
+              "defaultValue": {},
+              "type": "Object"
+            }
+          },
+          "triggers": {
+            "When_a_new_item_is_created": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "api": {
+                    "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/sharepointonline"
+                  },
+                  "connection": {
+                    "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering'))}/tables/@{encodeURIComponent(encodeURIComponent('ab9091d6-b957-4912-bf6a-6faec2a59fd7'))}/onnewitems"
+              },
+              "recurrence": {
+                "frequency": "Minute",
+                "interval": 3
+              },
+              "splitOn": "@triggerBody()?.value"
+            }
+          },
           "contentVersion": "1.0.0.0",
-          "actions": {},
-          "outputs": {},
-          "parameters": {},
-          "triggers": {}
+          "outputs": {}
         },
-        "parameters": {}
+        "parameters": {
+          "$connections": {
+            "value": {
+              "sharepointonline": {
+                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
+                "connectionName": "[parameters('sharepointonline_1_Connection_Name')]"
+              },
+              "office365": {
+                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('office365_1_Connection_Name'))]",
+                "connectionName": "[parameters('office365_1_Connection_Name')]"
+              }
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('office365_1_Connection_Name'))]"
+      ]
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('office365_1_Connection_Name')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365')]"
+        },
+        "displayName": "[parameters('office365_1_Connection_DisplayName')]"
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('sharepointonline_1_Connection_Name')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]"
+        },
+        "displayName": "[parameters('sharepointonline_1_Connection_DisplayName')]"
       }
     }
   ],
