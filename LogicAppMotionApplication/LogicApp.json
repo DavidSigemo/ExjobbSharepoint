@@ -99,32 +99,11 @@
             },
             "Switch": {
               "type": "Switch",
-              "expression": "@body('Send_approval_email')",
+              "expression": "@body('Send_approval_email')?['SelectedOption']",
               "cases": {
                 "Case_Godkänn": {
                   "case": "Godkänn",
                   "actions": {
-                    "Create_file": {
-                      "type": "ApiConnection",
-                      "inputs": {
-                        "host": {
-                          "api": {
-                            "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/sharepointonline"
-                          },
-                          "connection": {
-                            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
-                          }
-                        },
-                        "method": "post",
-                        "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering'))}/files",
-                        "queries": {
-                          "folderPath": "/yttrandeDokument",
-                          "name": "@{triggerBody()?['Title']}.txt"
-                        },
-                        "body": "@triggerBody()?['Kommentar']"
-                      },
-                      "runAfter": {}
-                    },
                     "Update_item": {
                       "type": "ApiConnection",
                       "inputs": {
@@ -139,12 +118,34 @@
                         "method": "patch",
                         "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering'))}/tables/@{encodeURIComponent(encodeURIComponent('ab9091d6-b957-4912-bf6a-6faec2a59fd7'))}/items/@{encodeURIComponent(triggerBody()?['ID'])}",
                         "body": {
-                          "Title": "@{triggerBody()?['Title']} godkänn",
-                          "Kommentar": "@{triggerBody()?['Kommentar']}"
+                          "Title": "@{triggerBody()?['Title']}",
+                          "Kommentar": "@{triggerBody()?['Kommentar']}",
+                          "Status": "Godkänd"
+                        }
+                      },
+                      "runAfter": {}
+                    },
+                    "Copy_file": {
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "api": {
+                            "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/sharepointonline"
+                          },
+                          "connection": {
+                            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                          }
+                        },
+                        "method": "post",
+                        "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering'))}/copyFile",
+                        "queries": {
+                          "source": "Dokumentformulr/Motionsmall_2016.docx",
+                          "destination": "yttrandeDokument/@{body('Update_item')['Title']}.docx",
+                          "overwrite": true
                         }
                       },
                       "runAfter": {
-                        "Create_file": [
+                        "Update_item": [
                           "Succeeded"
                         ]
                       }
@@ -168,8 +169,9 @@
                         "method": "patch",
                         "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering'))}/tables/@{encodeURIComponent(encodeURIComponent('ab9091d6-b957-4912-bf6a-6faec2a59fd7'))}/items/@{encodeURIComponent(triggerBody()?['ID'])}",
                         "body": {
-                          "Title": "@{triggerBody()?['Title']} avslag",
-                          "Kommentar": "@{triggerBody()?['Kommentar']}"
+                          "Title": "@{triggerBody()?['Title']}",
+                          "Kommentar": "@{triggerBody()?['Kommentar']}",
+                          "Status": "Nekad"
                         }
                       },
                       "runAfter": {}
@@ -221,23 +223,23 @@
         "parameters": {
           "$connections": {
             "value": {
-              "sharepointonline": {
-                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
-                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
-                "connectionName": "[parameters('sharepointonline_1_Connection_Name')]"
-              },
               "office365": {
                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('office365_1_Connection_Name'))]",
                 "connectionName": "[parameters('office365_1_Connection_Name')]"
+              },
+              "sharepointonline": {
+                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
+                "connectionName": "[parameters('sharepointonline_1_Connection_Name')]"
               }
             }
           }
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('office365_1_Connection_Name'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('office365_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]"
       ]
     },
     {
