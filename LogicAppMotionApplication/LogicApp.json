@@ -56,6 +56,14 @@
     "sharepointonline_1_Connection_DisplayName": {
       "type": "string",
       "defaultValue": "DavidSigemo@Blargh.onmicrosoft.com"
+    },
+    "office365users_1_Connection_Name": {
+      "type": "string",
+      "defaultValue": "office365users"
+    },
+    "office365users_1_Connection_DisplayName": {
+      "type": "string",
+      "defaultValue": "DavidSigemo@Blargh.onmicrosoft.com"
     }
   },
   "variables": {},
@@ -90,12 +98,16 @@
                     "To": "DavidSigemo@blargh.onmicrosoft.com",
                     "Subject": "Ny motionsansökan",
                     "Options": "Godkänn, Avslå",
-                    "Body": "<h3>En ny ansökan har skickats in</h3><br /><p>@{triggerBody()?['Author']?['DisplayName']} , @{triggerBody()?['Sender']?['Value']} har skapat följande ansökan:</p><div><p>Rubrik: @{triggerBody()?['Title']}</p><p>Kommentar: <div>@{triggerBody()?['Kommentar']}</div></p></div><br /><p>För att skapa upp en motion för ärendet var god välj \"Godkänn\" nedan, annars välj \"Avslå\".</p>",
+                    "Body": "<h3>En ny ansökan har skickats in</h3><br /><p>@{triggerBody()?['Author']?['DisplayName']} ,@{triggerBody()?['Sender']?['Value']} har skapat följande ansökan:</p><div><p>Rubrik: @{triggerBody()?['Title']}</p><p>Kommentar: <div>@{triggerBody()?['Kommentar']}</div></p></div><br /><p>För att skapa upp en motion för ärendet var god välj \"Godkänn\" nedan, annars välj \"Avslå\".</p>",
                     "Importance": "Normal"
                   }
                 }
               },
-              "runAfter": {}
+              "runAfter": {
+                "Get_user_profile": [
+                  "Succeeded"
+                ]
+              }
             },
             "Switch": {
               "type": "Switch",
@@ -149,6 +161,34 @@
                           "Succeeded"
                         ]
                       }
+                    },
+                    "Send_an_email": {
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "api": {
+                            "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/office365"
+                          },
+                          "connection": {
+                            "name": "@parameters('$connections')['office365']['connectionId']"
+                          }
+                        },
+                        "method": "post",
+                        "path": "/Mail",
+                        "body": {
+                          "From": "no-reply@blargh.onmicrosoft.com",
+                          "To": "@{triggerBody()?['Author']?['Email']}",
+                          "Subject": "Beslut - @{triggerBody()?['Title']}",
+                          "Body": "<h4>Din ansökan om en motion är godkänd.</h4><p>Ett dokument har skapats, du kan finna det i detta <a href=\"https://blargh.sharepoint.com/sites/motionshanteringexjobb/Motionshantering/yttrandeDokument/Forms/Yttrande%20dokument.aspx\">dokumentbibliotek</a>.</p><p>För mer info var god kontakta <a href=\"mailto:@{body('Get_user_profile')?['Mail']}\">@{body('Get_user_profile')?['DisplayName']}</a></p><br/><br/><p>Vänliga Hälsningar,<br/>Motionshantering</p>",
+                          "Importance": "Normal",
+                          "IsHtml": true
+                        }
+                      },
+                      "runAfter": {
+                        "Copy_file": [
+                          "Succeeded"
+                        ]
+                      }
                     }
                   }
                 },
@@ -175,6 +215,34 @@
                         }
                       },
                       "runAfter": {}
+                    },
+                    "Send_an_email_2": {
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "api": {
+                            "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/office365"
+                          },
+                          "connection": {
+                            "name": "@parameters('$connections')['office365']['connectionId']"
+                          }
+                        },
+                        "method": "post",
+                        "path": "/Mail",
+                        "body": {
+                          "From": "no-reply@blargh.onmicrosoft.com",
+                          "To": "@{triggerBody()?['Author']?['Email']}",
+                          "Subject": "Beslut - @{body('Update_item_2')['Title']}",
+                          "Body": "<h4>Din ansökan om en motion har blivigt nekad.</h4><p>För mer info var god kontakta <a href=\"mailto:@{body('Get_user_profile')?['Mail']}\">@{body('Get_user_profile')?['DisplayName']}</a></p><br/><br/><p>Vänliga Hälsningar,<br/>Motionshantering</p>",
+                          "Importance": "Normal",
+                          "IsHtml": true
+                        }
+                      },
+                      "runAfter": {
+                        "Update_item_2": [
+                          "Succeeded"
+                        ]
+                      }
                     }
                   }
                 }
@@ -187,6 +255,22 @@
                   "Succeeded"
                 ]
               }
+            },
+            "Get_user_profile": {
+              "type": "ApiConnection",
+              "inputs": {
+                "host": {
+                  "api": {
+                    "runtimeUrl": "https://logic-apis-northeurope.azure-apim.net/apim/office365users"
+                  },
+                  "connection": {
+                    "name": "@parameters('$connections')['office365users']['connectionId']"
+                  }
+                },
+                "method": "get",
+                "path": "/users/@{encodeURIComponent('Davidsigemo@blargh.onmicrosoft.com')}"
+              },
+              "runAfter": {}
             }
           },
           "parameters": {
@@ -232,6 +316,11 @@
                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]",
                 "connectionId": "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
                 "connectionName": "[parameters('sharepointonline_1_Connection_Name')]"
+              },
+              "office365users": {
+                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365users')]",
+                "connectionId": "[resourceId('Microsoft.Web/connections', parameters('office365users_1_Connection_Name'))]",
+                "connectionName": "[parameters('office365users_1_Connection_Name')]"
               }
             }
           }
@@ -239,7 +328,8 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/connections', parameters('office365_1_Connection_Name'))]",
-        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]"
+        "[resourceId('Microsoft.Web/connections', parameters('sharepointonline_1_Connection_Name'))]",
+        "[resourceId('Microsoft.Web/connections', parameters('office365users_1_Connection_Name'))]"
       ]
     },
     {
@@ -264,6 +354,18 @@
           "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'sharepointonline')]"
         },
         "displayName": "[parameters('sharepointonline_1_Connection_DisplayName')]"
+      }
+    },
+    {
+      "type": "MICROSOFT.WEB/CONNECTIONS",
+      "apiVersion": "2016-06-01",
+      "name": "[parameters('office365users_1_Connection_Name')]",
+      "location": "[parameters('logicAppLocation')]",
+      "properties": {
+        "api": {
+          "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', parameters('logicAppLocation'), '/managedApis/', 'office365users')]"
+        },
+        "displayName": "[parameters('office365users_1_Connection_DisplayName')]"
       }
     }
   ],
